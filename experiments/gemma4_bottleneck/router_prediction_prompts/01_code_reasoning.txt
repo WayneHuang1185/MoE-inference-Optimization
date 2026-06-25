@@ -1,0 +1,1 @@
+請閱讀下面需求並設計 Python 程式：給定一組 tensor residency log，找出每一層被頻繁換入的 expert tensor，並輸出每個 tensor 的 page fault 次數排序。

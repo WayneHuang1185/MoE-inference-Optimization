@@ -1,0 +1,1 @@
+請從快到慢列出以下儲存層級的存取延遲：CPU register、L1 cache、L2 cache、L3 cache、DRAM、NVMe SSD、SATA HDD、network storage。每一層的典型延遲是多少 nanoseconds？

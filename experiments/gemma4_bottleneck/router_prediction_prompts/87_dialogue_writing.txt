@@ -1,0 +1,1 @@
+Write a tense, dialogue-heavy scene between a junior SRE and a senior incident commander during the first ten minutes of a production database outage. Keep the technical detail realistic.

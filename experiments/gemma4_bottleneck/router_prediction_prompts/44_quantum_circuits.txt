@@ -1,0 +1,1 @@
+Describe Grover's search algorithm and the role of the oracle, the amplitude amplification step, and why the optimal number of iterations scales as the square root of the search space size.

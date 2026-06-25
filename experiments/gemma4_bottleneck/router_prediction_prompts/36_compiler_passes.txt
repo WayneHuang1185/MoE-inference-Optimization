@@ -1,0 +1,1 @@
+Explain in technical detail how a modern compiler implements SSA-based dead code elimination, including the iterative worklist algorithm and how it interacts with phi nodes.

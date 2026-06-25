@@ -1,0 +1,1 @@
+我在遠端工作站用 podman 跑 llama-server，限制 memory 之後 major page faults 變多，但 latency 沒有明顯增加。請列出可能原因與驗證方法。

@@ -1,0 +1,1 @@
+Explain how the Linux CFS scheduler computes vruntime, how nice values map to weights, and what changes when a task becomes IO-bound versus CPU-bound.

@@ -1,0 +1,1 @@
+請寫出一個 CUDA kernel 做 element-wise 向量加法 c = a + b，並說明 block size、grid size 該怎麼選，以及為什麼合併存取 (coalesced memory access) 對效能很重要。

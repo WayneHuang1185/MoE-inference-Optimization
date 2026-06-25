@@ -1,0 +1,1 @@
+Walk through how a cost-based query planner picks between nested loop, hash, and merge joins, and what statistics it needs from the table to make that decision robust.

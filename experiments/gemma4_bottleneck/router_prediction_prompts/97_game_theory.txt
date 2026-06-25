@@ -1,0 +1,1 @@
+Define a Nash equilibrium for a two-player game, give an example with two pure-strategy equilibria, and explain how mixed-strategy equilibria arise when no pure equilibrium exists.

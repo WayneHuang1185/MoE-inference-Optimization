@@ -1,0 +1,1 @@
+Walk through how to capacity-plan an HTTP service expecting 5x growth over six months, including how to convert request rate forecasts into CPU, memory, and connection-pool requirements.

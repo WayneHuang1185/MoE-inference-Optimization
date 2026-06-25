@@ -1,0 +1,1 @@
+Write a Python function that finds all open reading frames (ORFs) of length at least 100 codons in a given DNA string, considering all 6 reading frames (3 forward, 3 reverse complement). Return ORFs as tuples of (frame, start, end, protein_sequence).

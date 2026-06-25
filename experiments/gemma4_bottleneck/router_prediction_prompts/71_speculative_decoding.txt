@@ -1,0 +1,1 @@
+Explain how speculative decoding accelerates LLM inference with a small draft model and a verifier, why the acceptance ratio is the central metric, and when it fails to help latency.

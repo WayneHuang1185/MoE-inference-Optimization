@@ -1,0 +1,1 @@
+Compare structured pruning (remove entire neurons or channels) vs unstructured pruning (remove individual weights). Which is easier to accelerate on standard hardware, and why?

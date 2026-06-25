@@ -1,0 +1,1 @@
+Explain how FlashAttention uses tiling, online softmax, and recomputation to reduce HBM traffic, and quantify the memory and throughput benefit for a 4096-token sequence.

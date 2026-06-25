@@ -1,0 +1,1 @@
+Walk through what happens when an async Python coroutine is awaited: which frame state is captured, how the event loop resumes the coroutine, and where exceptions propagate.

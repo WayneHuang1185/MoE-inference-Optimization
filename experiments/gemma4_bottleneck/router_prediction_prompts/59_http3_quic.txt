@@ -1,0 +1,1 @@
+Summarize how QUIC differs from TCP in connection establishment, congestion control, and head-of-line blocking avoidance, and explain the implications for mobile-network web performance.

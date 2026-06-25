@@ -1,0 +1,1 @@
+Explain to a non-finance engineer how an interest-rate swap is priced, what a discount curve is, and why the par-swap rate moves when SOFR fixings change.

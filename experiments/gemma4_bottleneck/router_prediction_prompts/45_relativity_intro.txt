@@ -1,0 +1,1 @@
+Derive the time dilation formula from the postulates of special relativity using a light-clock thought experiment, then state the conditions under which classical mechanics is recovered.

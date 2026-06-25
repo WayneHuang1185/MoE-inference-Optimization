@@ -1,0 +1,1 @@
+請描述 knowledge distillation 裡 soft-label loss 的數學形式。Temperature parameter T 該怎麼選？student 在 cross-entropy 之外為什麼還要學 teacher 的 logits？

@@ -1,0 +1,1 @@
+Explain the offline-online consistency problem in feature stores, how point-in-time correct joins are computed, and where late-arriving training data tends to produce silent skew.

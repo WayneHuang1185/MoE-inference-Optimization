@@ -1,0 +1,1 @@
+Describe a disciplined approach to chaos engineering experiments in production, covering hypothesis design, blast radius control, abort criteria, and how to integrate findings into postmortems.

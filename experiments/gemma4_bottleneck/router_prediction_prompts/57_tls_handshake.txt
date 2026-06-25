@@ -1,0 +1,1 @@
+Explain the TLS 1.3 handshake step by step, including how 0-RTT data is protected, why pre-shared keys are used for session resumption, and what downgrade risks the protocol mitigates.

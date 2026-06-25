@@ -1,0 +1,1 @@
+Compare HNSW and IVF-PQ vector index structures in terms of build time, memory footprint, recall vs latency trade-off, and how each handles dynamic insertion.

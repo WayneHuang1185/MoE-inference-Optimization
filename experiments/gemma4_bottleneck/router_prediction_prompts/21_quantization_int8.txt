@@ -1,0 +1,1 @@
+How does post-training int8 quantization of an LLM affect inference latency and accuracy? Discuss per-tensor vs per-channel scales, calibration data choice, and which layer types tend to lose the most accuracy.

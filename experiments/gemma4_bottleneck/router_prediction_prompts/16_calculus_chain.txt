@@ -1,0 +1,1 @@
+Compute the derivative of f(x) = sin(x^2 + 1) * exp(x) using the chain rule and product rule. Show every intermediate step and then evaluate f'(0).

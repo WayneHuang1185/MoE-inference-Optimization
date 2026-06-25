@@ -1,0 +1,1 @@
+Design an MLOps pipeline for a recommendation model that retrains weekly, including data validation, feature store, training, evaluation gating, shadow deployment, and rollback.

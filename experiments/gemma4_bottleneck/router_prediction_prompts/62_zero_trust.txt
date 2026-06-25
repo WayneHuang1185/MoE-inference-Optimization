@@ -1,0 +1,1 @@
+Outline a zero-trust network access design for a remote-first engineering organization, listing the identity, device posture, and policy enforcement components and how they interact at request time.

@@ -1,0 +1,1 @@
+Explain Rust's borrow checker rules for mutable and immutable references, then demonstrate why the following code fails to compile and propose two idiomatic fixes.

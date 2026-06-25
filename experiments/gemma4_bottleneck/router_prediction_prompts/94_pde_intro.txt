@@ -1,0 +1,1 @@
+Derive the one-dimensional heat equation from energy conservation on a thin rod, then solve it on a finite interval with Dirichlet boundary conditions using separation of variables.

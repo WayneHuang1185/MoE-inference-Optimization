@@ -1,0 +1,1 @@
+Write a Python program that demonstrates a classic race condition between two threads incrementing a shared counter. Then propose three different fixes: lock, atomic operation, and lock-free queue. Discuss trade-offs.

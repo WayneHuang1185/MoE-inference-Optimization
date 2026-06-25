@@ -1,0 +1,1 @@
+請用繁體中文說明 Mixture-of-Experts inference 的主要效能瓶頸，包含 expert routing、weight paging、KV cache、prefill 與 decode 的差異。

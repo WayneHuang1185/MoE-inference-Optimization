@@ -1,0 +1,1 @@
+Erkläre auf Deutsch, wie ein Mixture-of-Experts-Modell während der Inferenz Speicherbandbreite spart und welche Rolle der Router bei der Vorhersage zukünftiger Experten spielt.

@@ -1,0 +1,1 @@
+Explain the intuition behind the Black-Scholes formula for a European call option. Why does increasing volatility always increase option value, and what does that mean for the option seller's hedging strategy?

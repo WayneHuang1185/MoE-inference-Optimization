@@ -1,0 +1,1 @@
+Trace what happens when a fresh DNS query for a CNAME-chained subdomain leaves a stub resolver, including how recursive resolvers cache, how DNSSEC validates, and where common failure modes appear.

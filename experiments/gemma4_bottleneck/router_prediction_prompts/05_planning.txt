@@ -1,0 +1,1 @@
+請幫我規劃一個為期兩週的實驗計畫，用來驗證 Gemma4 26B 的 i 層 hidden state 是否能提前預測 i+1 層 MoE router 選到的 experts。

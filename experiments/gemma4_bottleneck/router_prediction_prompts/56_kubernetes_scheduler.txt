@@ -1,0 +1,1 @@
+Describe how the Kubernetes scheduler binds a Pod to a Node, the filter and score phases, and the role of taints, tolerations, and topology spread constraints.
