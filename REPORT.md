@@ -1,3 +1,33 @@
+## Background
+
+llama.cpp 是目前最主流的開源 CPU LLM 推論引擎。它載入模型的方式是用 mmap() 把整個 GGUF 模型檔案映射到 virtual address space，讓 OS 的 page cache 負責把需要的 page 從 disk 載入記憶體。這個設計很優雅：模型權重在 disk 上是一串浮點數，在記憶體裡也是一串浮點數，mmap() 讓它們直接可用，不需要額外的 copy。
+這個做法在 2023 年運作得很好，因為當時的模型結構很均質。一個 Llama 7B 模型裡的每個 tensor 對推論同等重要，OS 用 LRU 策略淘汰任何 page 都不會造成明顯的效能差異。
+
+但隨著新型架構的演進，這種假設被徹底打破。以2026年 Gemma4-26B為例，一個模型檔案裡同時包含了兩種 access frequency 不同的權重：
+- Always-on weight：包含核心 Attention 與基礎層，每個 token 推論都必須百分之百存取，以及 MoE 中被高度重複啟用（reuse）或作為 shared experts 的高熱度專家權重。
+- Sparse expert weight：每層有128個eperts，但根據 token 的語意，每個 token 只會被 route 到其中8個，其餘絕大比例的 expert 權重在當下都是完全閒置（idle）的。
+
+問題在於：OS 的 page cache 看不到這些結構差異。它只知道這是一個大檔案，用 LRU 來決定哪些 page 該被淘汰。當多個 agent 同時跑推論、記憶體不夠放下所有模型時，LRU 可能會把正在使用的核心expert 權重淘汰掉，卻留著根本沒在用 idle 的 expert 權重。結果就是：active agent 做推論時不斷觸發 page fault，每個 token 的生成延遲暴增。
+
+# Research Questions
+
+MOE架構的大型語言模型推論的硬體限制主要來自兩個不同的面向：`Compute Capability` 和  `Memory Capacity`。這兩者會引發不同的系統瓶頸。即使系統具備充足的算力，只要模型參數總量超過了可用的記憶體容量，系統就必須在不同層級的儲存介面之間頻繁進行權重置換。
+
+當資料搬移的速度無法滿足核心的計算需求時，推論瓶頸就會從 `Compute-bound` 轉向 `I/O-bound` 。這種現象在 `MoE` 等稀疏模型中尤為嚴重。由於每次推論只會活化部分 `expert weights` ，倘若系統採取被動策略，直到  `expert routing` 確定後才開始從外部載入對應的 `Expert weights` ，計算單元就必須原地等待 `I/O` 傳輸完成。這會導致資料搬移直接成為整個推論管線的 `Critical path` ，使算力出現嚴重的 `stall` 。
+
+ 
+因此本研究的主要問題：
+```
+在 expert weights 無法完全常駐於 memory 的情況下
+能否透過預測未來將被活化的 experts
+提前載入對應的 weight pages
+並將資料搬移與當前模型計算重疊
+以降低 I/O latency 對推論效能的影響？
+```
+為了回答上述問題，本研究進一步探討以下兩項研究問題：
+- 預測式 expert prefetching 是否能夠及早識別未來將被活化的 experts，並有效降低因 expert weight miss 所造成的 stall time？
+- 在考量預測錯誤所造成的額外資料搬移、額外 I/O 流量，以及 Routing Path Predictor 本身的運算成本後，預測式 prefetching 是否仍能帶來整體推論效能的淨提升？
+
 ## Method
 ![image](https://hackmd.io/_uploads/S1VJyQ5ffe.png)
 
