@@ -198,6 +198,11 @@ extern "C" {
         LLAMA_SPLIT_MODE_TENSOR = 3,
     };
 
+    enum llama_context_type {
+        LLAMA_CONTEXT_TYPE_DEFAULT = 0,
+        LLAMA_CONTEXT_TYPE_MTP     = 1,
+    };
+
     // TODO: simplify (https://github.com/ggml-org/llama.cpp/pull/9294#pullrequestreview-2286561979)
     typedef struct llama_token_data {
         llama_token id; // token id
@@ -333,9 +338,12 @@ extern "C" {
         uint32_t n_batch;           // logical maximum batch size that can be submitted to llama_decode
         uint32_t n_ubatch;          // physical maximum batch size
         uint32_t n_seq_max;         // max number of sequences (i.e. distinct states for recurrent models)
+        uint32_t n_rs_seq;          // number of recurrent-state snapshots per seq for rollback (0 = no rollback) [EXPERIMENTAL]
+        uint32_t n_outputs_max;     // max outputs in a ubatch (0 = n_batch)
         int32_t  n_threads;         // number of threads to use for generation
         int32_t  n_threads_batch;   // number of threads to use for batch processing
 
+        enum llama_context_type      ctx_type;          // set the context type (e.g. MTP)
         enum llama_rope_scaling_type rope_scaling_type; // RoPE scaling type, from `enum llama_rope_scaling_type`
         enum llama_pooling_type      pooling_type;      // whether to pool (sum) embedding results by sequence id
         enum llama_attention_type    attention_type;    // attention type to use for embeddings
@@ -380,6 +388,10 @@ extern "C" {
         // note: the samplers must be sampler chains (i.e. use llama_sampler_chain_init)
         struct llama_sampler_seq_config * samplers;
         size_t                            n_samplers;
+
+        // a source/target/parent context
+        // can be utilized in various ways, for example by sharing results or llama_memory between 2 contexts
+        struct llama_context * ctx_other;
     };
 
     struct llama_model_tensor_override {
@@ -530,6 +542,7 @@ extern "C" {
     LLAMA_API uint32_t llama_n_batch    (const struct llama_context * ctx);
     LLAMA_API uint32_t llama_n_ubatch   (const struct llama_context * ctx);
     LLAMA_API uint32_t llama_n_seq_max  (const struct llama_context * ctx);
+    LLAMA_API uint32_t llama_n_rs_seq   (const struct llama_context * ctx);
 
     DEPRECATED(LLAMA_API int32_t llama_n_ctx_train(const struct llama_model * model), "use llama_model_n_ctx_train instead");
     DEPRECATED(LLAMA_API int32_t llama_n_embd     (const struct llama_model * model), "use llama_model_n_embd instead");
@@ -545,14 +558,15 @@ extern "C" {
     LLAMA_API const struct llama_vocab * llama_model_get_vocab(const struct llama_model * model);
     LLAMA_API enum llama_rope_type       llama_model_rope_type(const struct llama_model * model);
 
-    LLAMA_API int32_t llama_model_n_ctx_train(const struct llama_model * model);
-    LLAMA_API int32_t llama_model_n_embd     (const struct llama_model * model);
-    LLAMA_API int32_t llama_model_n_embd_inp (const struct llama_model * model);
-    LLAMA_API int32_t llama_model_n_embd_out (const struct llama_model * model);
-    LLAMA_API int32_t llama_model_n_layer    (const struct llama_model * model);
-    LLAMA_API int32_t llama_model_n_head     (const struct llama_model * model);
-    LLAMA_API int32_t llama_model_n_head_kv  (const struct llama_model * model);
-    LLAMA_API int32_t llama_model_n_swa      (const struct llama_model * model);
+    LLAMA_API int32_t llama_model_n_ctx_train  (const struct llama_model * model);
+    LLAMA_API int32_t llama_model_n_embd       (const struct llama_model * model);
+    LLAMA_API int32_t llama_model_n_embd_inp   (const struct llama_model * model);
+    LLAMA_API int32_t llama_model_n_embd_out   (const struct llama_model * model);
+    LLAMA_API int32_t llama_model_n_layer      (const struct llama_model * model);
+    LLAMA_API int32_t llama_model_n_layer_nextn(const struct llama_model * model);
+    LLAMA_API int32_t llama_model_n_head       (const struct llama_model * model);
+    LLAMA_API int32_t llama_model_n_head_kv    (const struct llama_model * model);
+    LLAMA_API int32_t llama_model_n_swa        (const struct llama_model * model);
 
     // Get the model's RoPE frequency scaling factor
     LLAMA_API float llama_model_rope_freq_scale_train(const struct llama_model * model);
@@ -858,11 +872,17 @@ extern "C" {
                           size_t   n_token_capacity,
                           size_t * n_token_count_out);
 
+#define LLAMA_STATE_SEQ_FLAGS_NONE 0
+
 // for backwards-compat
 #define LLAMA_STATE_SEQ_FLAGS_SWA_ONLY 1
 
 // work only with partial states, such as SWA KV cache or recurrent cache (e.g. Mamba)
 #define LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY 1
+
+// Keeps the tensor data on device buffers (i.e. not accessible in host memory, but faster save/load).
+// Getting the state for a seq_id with this flag invalidates all prior states gotten for that seq_id with this flag.
+#define LLAMA_STATE_SEQ_FLAGS_ON_DEVICE 2
 
     typedef uint32_t llama_state_seq_flags;
 
@@ -940,6 +960,78 @@ extern "C" {
             struct llama_context * ctx,
               struct llama_batch   batch);
 
+    // Experimental RPP observation API. RPP predictions are hints only; the
+    // model's true router and compute graph remain authoritative.
+    enum llama_rpp_phase {
+        LLAMA_RPP_PHASE_UNKNOWN = 0,
+        LLAMA_RPP_PHASE_DATASET = 1,
+        LLAMA_RPP_PHASE_PREFILL = 2,
+        LLAMA_RPP_PHASE_DECODE  = 3,
+    };
+
+    struct llama_rpp_config {
+        const char * mode;             // "off", "replay", or "online"
+        const char * predictions_path; // prediction_trace.jsonl for replay mode
+        const char * trace_path;       // output JSONL; NULL or empty disables output
+        const char * model_path;       // GGUF file used by host pretouch
+        const char * page_map_path;    // expert_page_map.csv
+        const char * host_prefetch;    // "off" or "pretouch"
+        const char * gpu_transfer;     // "off" or "on"
+        const char * gpu_correction;   // "off" or "on"
+        const char * gpu_compute;      // "off" or "on"; use the expert cache for MoE compute
+
+        int32_t prefetch_depth;
+        int32_t prefetch_top_k;
+        int32_t prefetch_threads;
+        int32_t gpu_cache_mib;
+        int32_t gpu_staging_mib;
+        int32_t gpu_copy_workers;
+        const char * gpu_queue_policy; // "fifo" or "deadline"
+
+        bool enable_prefill;
+        bool enable_decode;
+    };
+
+    struct llama_rpp_token_metadata {
+        int64_t      request_id;
+        llama_seq_id seq_id;
+        llama_pos    pos;
+        llama_token  token;
+        enum llama_rpp_phase phase;
+    };
+
+    struct llama_rpp_layer_prediction_input {
+        int32_t layer;
+        const int32_t * experts;
+        const float * expert_confidences;
+        size_t n_experts;
+        float confidence;
+    };
+
+    // Configures RPP observation for a context. Returns false for an invalid
+    // configuration or if the replay trace cannot be loaded.
+    LLAMA_API bool llama_rpp_configure(
+            struct llama_context * ctx,
+            const struct llama_rpp_config * config);
+
+    // Submits metadata in the same order as the llama_batch passed to the next
+    // llama_decode() call. llama.cpp realigns it to each physical ubatch by
+    // (seq_id, pos), so callers do not need to predict ubatch splitting.
+    LLAMA_API bool llama_rpp_set_batch_metadata(
+            struct llama_context * ctx,
+            const struct llama_rpp_token_metadata * tokens,
+            size_t n_tokens);
+
+    // Adds or replaces one online token route. The runtime copies all input
+    // arrays before returning.
+    LLAMA_API bool llama_rpp_submit_route(
+            struct llama_context * ctx,
+            int64_t request_id,
+            llama_pos position,
+            enum llama_rpp_phase phase,
+            const struct llama_rpp_layer_prediction_input * layers,
+            size_t n_layers);
+
     // Set the number of threads used for decoding
     // n_threads is the number of threads used for generation (single token)
     // n_threads_batch is the number of threads used for prompt and batch processing (multiple tokens)
@@ -961,7 +1053,11 @@ extern "C" {
 
     // Set whether the model is in warmup mode or not
     // If true, all model tensors are activated during llama_decode() to load and cache their weights.
-    LLAMA_API void llama_set_warmup(struct llama_context * ctx, bool warmup);
+    //
+    // note: using this can cause extra graph reallocations because it changes the graph topology with MoE models,
+    //       so it is generally not recommended to use in practice. will be removed in the future
+    DEPRECATED(LLAMA_API void llama_set_warmup(struct llama_context * ctx, bool warmup),
+            "user code should do warmup runs manually [TAG_LLAMA_GRAPH_NO_WARMUP]");
 
     // Set abort callback
     LLAMA_API void llama_set_abort_callback(struct llama_context * ctx, ggml_abort_callback abort_callback, void * abort_callback_data);

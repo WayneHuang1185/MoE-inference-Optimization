@@ -1,0 +1,10 @@
+group,scenario,requests,latency_s,tok_s,h2d_gb_per_request,rpp_hit_pct,ready_hit_pct,note
+fresh baseline,native baseline rerun,60,6.022742333865851,11.163528180306587,0,0,0,Phase 6 runtime native --cpu-moe; no RPP runtime/cache trace
+Phase 6 formal,rpp-off-native,60,6.022742333865851,11.163528180306587,0.0,0.0,0.0,cache/native comparison
+Phase 6 formal,demand-cache-1g,60,9.733948075449977,4.942352891383934,11.626042299733333,0.0,36.65295138888889,cache/native comparison
+Phase 6 formal,online-rpp-top2,60,11.026571375731631,4.2997449304160495,16.233200366933332,8.561458333333333,36.58003472222222,online sidecar formal
+Phase 6 formal,online-rpp-top4,60,10.767946063349276,4.264038130237353,24.133631453866666,16.202083333333334,17.2109375,online sidecar formal
+Phase 6 formal,online-rpp-top8,60,11.557957120149998,3.914934074354021,31.7870905344,27.38125,1.2315972222222222,online sidecar formal
+Phase 4 historical formal,demand-only cache 0MB,60,7.753434177239736,4.02568699303159,25.599222,,0.0,previous demand-only runtime cache implementation
+Phase 4 historical formal,demand-only cache 2GB,60,7.307652417818705,4.316241354166738,16.0302956,,37.221741242784695,previous demand-only runtime cache implementation
+Phase 4 historical formal,demand-only cache 4GB,60,7.0135827422142025,4.516956780954837,12.440822,,51.185988109330694,previous demand-only runtime cache implementation

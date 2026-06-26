@@ -11,26 +11,17 @@ add_library(${TARGET} STATIC
     server-task.h
     server-queue.cpp
     server-queue.h
+    server-rpp-sidecar.cpp
+    server-rpp-sidecar.h
     server-common.cpp
     server-common.h
     server-context.cpp
     server-context.h
-    server-rpp-live.cpp
-    server-rpp-live.h
     server-tools.cpp
     server-tools.h
+    server-schema.cpp
+    server-schema.h
 )
-
-option(LLAMA_RPP_LIVE "Enable experimental RPP live scheduler hooks" OFF)
-if (LLAMA_RPP_LIVE)
-    find_package(Torch REQUIRED)
-    target_compile_definitions(${TARGET} PRIVATE LLAMA_RPP_LIVE=1)
-    target_include_directories(${TARGET} PRIVATE ${TORCH_INCLUDE_DIRS})
-    target_link_libraries(${TARGET} PUBLIC ${TORCH_LIBRARIES})
-    if (TORCH_CXX_FLAGS)
-        target_compile_options(${TARGET} PRIVATE ${TORCH_CXX_FLAGS})
-    endif()
-endif()
 
 if (BUILD_SHARED_LIBS)
     set_target_properties(${TARGET} PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -38,51 +29,35 @@ endif()
 
 target_include_directories(${TARGET} PRIVATE ../mtmd)
 target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(${TARGET} PUBLIC llama-common mtmd ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(${TARGET} PUBLIC llama-common mtmd cpp-httplib ${CMAKE_THREAD_LIBS_INIT})
 
+# llama-server-impl: server logic, reusable by app
 
-# llama-server executable
+set(TARGET llama-server-impl)
 
-set(TARGET llama-server)
-
-set(TARGET_SRCS
+add_library(${TARGET}
     server.cpp
     server-http.cpp
     server-http.h
     server-models.cpp
     server-models.h
 )
+set_target_properties(${TARGET} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
-option(LLAMA_BUILD_WEBUI "Build the embedded Web UI" ON)
+target_include_directories(${TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(${TARGET} PRIVATE ../mtmd ${CMAKE_SOURCE_DIR})
+target_link_libraries(${TARGET} PUBLIC server-context llama-ui cpp-httplib ${CMAKE_THREAD_LIBS_INIT})
 
-if (LLAMA_BUILD_WEBUI)
-    set(PUBLIC_ASSETS
-        index.html
-        bundle.js
-        bundle.css
-        loading.html
-    )
-
-    foreach(asset ${PUBLIC_ASSETS})
-        set(input "${CMAKE_CURRENT_SOURCE_DIR}/public/${asset}")
-        set(output "${CMAKE_CURRENT_BINARY_DIR}/${asset}.hpp")
-        list(APPEND TARGET_SRCS ${output})
-        add_custom_command(
-            DEPENDS "${input}"
-            OUTPUT "${output}"
-            COMMAND "${CMAKE_COMMAND}" "-DINPUT=${input}" "-DOUTPUT=${output}" -P "${PROJECT_SOURCE_DIR}/scripts/xxd.cmake"
-        )
-        set_source_files_properties(${output} PROPERTIES GENERATED TRUE)
-    endforeach()
-    add_definitions(-DLLAMA_BUILD_WEBUI)
-else()
+if(LLAMA_TOOLS_INSTALL)
+    install(TARGETS ${TARGET} LIBRARY)
 endif()
 
-add_executable(${TARGET} ${TARGET_SRCS})
+# llama-server executable
+
+set(TARGET llama-server)
+
+add_executable(${TARGET} main.cpp)
 install(TARGETS ${TARGET} RUNTIME)
 
-target_include_directories(${TARGET} PRIVATE ../mtmd)
-target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(${TARGET} PRIVATE server-context PUBLIC llama-common cpp-httplib ${CMAKE_THREAD_LIBS_INIT})
-
+target_link_libraries(${TARGET} PRIVATE llama-server-impl)
 target_compile_features(${TARGET} PRIVATE cxx_std_17)

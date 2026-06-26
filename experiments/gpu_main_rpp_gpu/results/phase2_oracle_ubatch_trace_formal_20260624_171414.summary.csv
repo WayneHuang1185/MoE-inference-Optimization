@@ -1,0 +1,2 @@
+scenario,op_offload_min_batch,requests,mean_total_s,mean_ttft_s,mean_tokens_per_s,mean_major_faults,mean_read_bytes,moe_compute_backends,mean_moe_compute_events,mean_moe_mul_mat_id_events,mean_moe_trace_events,mean_moe_trace_payload_mb,mean_moe_trace_copied_mb,mean_moe_trace_ranges,mean_moe_trace_enqueue_ms
+gpu-cpu-moe-expert-gpu-offload,1,60,8.098413554827372,4.047770059108734,3.8662838274480555,10243.25,7981245235.2,"CPU,CUDA0",7920.0,3960.0,3957.0,26213.603328,26232.791808,37612.8,7674.992466666667

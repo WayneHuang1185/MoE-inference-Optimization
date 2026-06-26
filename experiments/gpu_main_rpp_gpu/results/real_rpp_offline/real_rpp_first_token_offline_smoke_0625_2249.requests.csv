@@ -1,0 +1,2 @@
+request_index,prompt_id,task_type,repeat,prompt_tokens,first_token_id,prefix_ok,lcp_tokens,rpp_forward_ms,rpp_input_tokens,rpp_cropped_tokens,continuation_demands,continuation_events,continuation_ubatches,continuation_duration_ms,skipped_prefill_events,skipped_crossing_events
+1,text_001,text_continuation,1,21,279,True,21,253.45873832702637,22,22,29760,3720,31,3846.39,357,0

@@ -6,6 +6,7 @@
 #include "llama-graph.h"
 #include "llama-adapter.h"
 #include "llama-impl.h"
+#include "llama-memory.h"
 
 #include "ggml-cpp.h"
 #include "ggml-opt.h"
@@ -15,6 +16,7 @@
 
 struct llama_model;
 class llama_batch_allocr;
+class llama_rpp_runtime;
 
 class llama_io_read_i;
 class llama_io_write_i;
@@ -22,6 +24,21 @@ class llama_io_write_i;
 // "memory" as in abstract memory for the context
 struct llama_memory_i;
 struct llama_memory_context_i;
+
+// stores copy of the memory in device buffer. used for fast state save/load
+struct llama_memory_buffer {
+    int n_tensors = 0;
+    size_t total_size = 0;
+
+    ggml_backend_buffer_ptr buf;
+
+    ggml_context_ptr ctx;
+
+    std::vector<ggml_tensor *> org;
+    std::vector<ggml_tensor *> cpy;
+};
+
+using llama_memory_buffers = std::map<ggml_backend_buffer_type_t, llama_memory_buffer>;
 
 struct llama_context {
     // init scheduler and compute buffers, reserve worst-case graphs
@@ -69,6 +86,11 @@ struct llama_context {
     float * get_embeddings_ith(int32_t i);
     float * get_embeddings_seq(llama_seq_id seq_id);
 
+    float * get_embeddings_nextn();
+    float * get_embeddings_nextn_ith(int32_t i);
+
+    float * get_embeddings_layer_inp(uint32_t lid);
+
     llama_token * get_sampled_tokens() const;
     llama_token   get_sampled_token_ith(int32_t idx);
 
@@ -92,6 +114,9 @@ struct llama_context {
     void set_abort_callback(bool (*abort_callback)(void * data), void * abort_callback_data);
 
     void set_embeddings (bool value);
+    void set_embeddings_nextn(bool value, bool masked);
+    void set_embeddings_layer_inp(uint32_t lid, bool enable);
+    void set_nextn_layer_offset(int32_t offset);
     void set_causal_attn(bool value);
     void set_warmup(bool value);
 
@@ -104,7 +129,18 @@ struct llama_context {
                  size_t   len,
                 int32_t   n_embd,
                 int32_t   il_start,
-                int32_t   il_end);
+                 int32_t   il_end);
+
+    bool rpp_configure(const llama_rpp_config & config);
+    bool rpp_set_batch_metadata(
+            const llama_rpp_token_metadata * tokens,
+            size_t n_tokens);
+    bool rpp_submit_route(
+            int64_t request_id,
+            llama_pos position,
+            enum llama_rpp_phase phase,
+            const llama_rpp_layer_prediction_input * layers,
+            size_t n_layers);
 
     // process a single ubatch with a specific graph type
     // if memory_context is provided, it will be applied first to the context's memory
@@ -128,6 +164,7 @@ struct llama_context {
     size_t state_set_data(const uint8_t * src, size_t size);
 
     size_t state_seq_get_size(llama_seq_id seq_id, llama_state_seq_flags flags);
+
     size_t state_seq_get_data(llama_seq_id seq_id,       uint8_t * dst, size_t size, llama_state_seq_flags flags);
     size_t state_seq_set_data(llama_seq_id seq_id, const uint8_t * src, size_t size, llama_state_seq_flags flags);
 
@@ -205,6 +242,10 @@ private:
     // map the output row index `i` to batch index
     int64_t output_resolve_row(int32_t i) const;
 
+    // async-copy enabled layer-input tensors (per cparams.output_layer_inp)
+    // from backend into host-side embd_layer_inp buffers
+    void extract_layer_inputs(const llm_graph_result * res, size_t token_offset, size_t n_tokens);
+
     //
     // graph
     //
@@ -253,7 +294,7 @@ private:
 
     llama_cross cross; // TODO: tmp for handling cross-attention - need something better probably
 
-    std::unique_ptr<llama_memory_i> memory;
+    llama_memory_ptr memory;
 
     // decode output (2-dimensional array: [n_outputs][n_vocab])
     buffer_view<float> logits = {nullptr, 0};
@@ -262,9 +303,18 @@ private:
     // populated only when pooling_type == LLAMA_POOLING_TYPE_NONE
     buffer_view<float> embd = {nullptr, 0};
 
+    // hidden state required by the nextn layers (2-dimensional array: [n_outputs][n_embd])
+    // populated only when cparams.embeddings_nextn is enabled and the model graph
+    // sets llm_graph_result::t_h_nextn
+    buffer_view<float> embd_nextn = {nullptr, 0};
+
+    // host buffers for output layer input embeddings, per layer
+    // populated when cparams.output_layer_inp[il] is true
+    std::vector<buffer_view<float>> embd_layer_inp;
+
     struct sampling_info {
         // !samplers.empty() to check if any samplers are active
-        std::map<llama_seq_id, llama_sampler *> samplers;
+    std::map<llama_seq_id, llama_sampler *> samplers;
 
         buffer_view<float>       logits     = {nullptr, 0};
         buffer_view<llama_token> sampled    = {nullptr, 0};
@@ -287,6 +337,7 @@ private:
 
     // reuse the batch_allocr to avoid unnecessary memory allocations
     std::unique_ptr<llama_batch_allocr> balloc;
+    std::unique_ptr<llama_rpp_runtime> rpp;
 
     uint32_t n_outputs = 0; // number of actually-used outputs in the current ubatch or last logical batch
 
@@ -327,6 +378,9 @@ private:
 
     // host buffer for the model output (logits and embeddings)
     ggml_backend_buffer_ptr buf_output;
+
+    // keep copies of the per-sequence memory on the device
+    std::map<llama_seq_id, llama_memory_buffers> mem_storage;
 
     bool has_evaluated_once = false;
 

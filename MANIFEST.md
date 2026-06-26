@@ -16,6 +16,8 @@ outputs are intentionally excluded; see `EXCLUDED.md`.
 - `experiments/gemma4_bottleneck/`: prompt generation, router-logit collection,
   NPZ preparation helpers, historical RPP/bottleneck analysis scripts, and
   runner scripts used while developing the reported RPP pipeline.
+- `experiments/gpu_main_rpp_gpu/`: GPU-main Qwen3.6 RPP-GPU runtime cache,
+  online RPP sidecar, compact summaries, report, and figures.
 - `dataset/utils/`: prompt database generation, llama-server label dumping,
   NPZ packing, validation, and monitoring source scripts.
 - `vast-ai/`: CUDA training image and Vast.ai runner/monitor scripts for RPP
@@ -153,6 +155,41 @@ External prerequisites:
 - Prompt files, expected-completion files, and generation settings generated for
   each run.
 - Runtime statistics, queue traces, overlap traces, client results, and figures.
+
+### GPU-main RPP-GPU Runtime Cache Evaluation
+
+Primary report and runners:
+
+- `experiments/gpu_main_rpp_gpu/REPORT.md`
+- `experiments/gpu_main_rpp_gpu/run_phase6_qwen_online_rpp_gpu_formal.py`
+- `experiments/gpu_main_rpp_gpu/run_qwen_online_rpp_gpu_smoke.sh`
+- `experiments/gpu_main_rpp_gpu/run_runtime_rpp_hint.py`
+- `experiments/gpu_main_rpp_gpu/build_real_rpp_offline.py`
+- `experiments/gpu_main_rpp_gpu/build_oracle_hints.py`
+
+Source dependencies:
+
+- `llama.cpp/src/llama-rpp-runtime.cpp`
+- `llama.cpp/src/llama-rpp-gpu-cache.cpp`
+- `llama.cpp/src/llama-rpp-gpu-transfer.cpp`
+- `llama.cpp/src/llama-rpp-prefetch.cpp`
+- `llama.cpp/src/llama-rpp-predictor-replay.cpp`
+- `llama.cpp/tools/server/server-rpp-sidecar.cpp`
+- `llama.cpp/tests/test-rpp-*.cpp`
+
+Bundled compact outputs:
+
+- `experiments/gpu_main_rpp_gpu/results/`
+- `experiments/gpu_main_rpp_gpu/figures/`
+- `experiments/gpu_main_rpp_gpu/prompts/prompts.jsonl`
+
+External prerequisites:
+
+- Qwen3.6 35B A3B GGUF model file.
+- Built llama.cpp CUDA binaries.
+- RPP checkpoint or equivalent prediction sidecar configuration.
+- Raw trace JSONL, server logs, model weights, and large generated artifacts are
+  intentionally excluded.
 
 ## Notes
 

@@ -1,0 +1,15 @@
+{
+  "llama_server": "/home/hazcashi/lab/llama.cpp/build/bin/llama-server",
+  "model": "/home/hazcashi/lab/model/Qwen3.6-35B-A3B-UD-Q4_K_M.gguf",
+  "prompts": "/home/hazcashi/lab/experience/RPP/analyze/prompts.jsonl",
+  "out_dir": "results",
+  "host": "127.0.0.1",
+  "port": 18110,
+  "ctx": 2048,
+  "threads": 8,
+  "n_predict": 32,
+  "temperature": 0.0,
+  "repeat": 1,
+  "ngl_gpu": 999,
+  "op_offload_min_batch": 1
+}

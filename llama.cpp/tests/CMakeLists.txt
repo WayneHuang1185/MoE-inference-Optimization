@@ -131,6 +131,7 @@ llama_test(test-tokenizer-0 NAME test-tokenizer-0-llama-spm         ARGS ${PROJE
 llama_test(test-tokenizer-0 NAME test-tokenizer-0-mpt               ARGS ${PROJECT_SOURCE_DIR}/models/ggml-vocab-mpt.gguf)
 llama_test(test-tokenizer-0 NAME test-tokenizer-0-phi-3             ARGS ${PROJECT_SOURCE_DIR}/models/ggml-vocab-phi-3.gguf)
 llama_test(test-tokenizer-0 NAME test-tokenizer-0-qwen2             ARGS ${PROJECT_SOURCE_DIR}/models/ggml-vocab-qwen2.gguf)
+llama_test(test-tokenizer-0 NAME test-tokenizer-0-qwen35            ARGS ${PROJECT_SOURCE_DIR}/models/ggml-vocab-qwen35.gguf)
 llama_test(test-tokenizer-0 NAME test-tokenizer-0-refact            ARGS ${PROJECT_SOURCE_DIR}/models/ggml-vocab-refact.gguf)
 llama_test(test-tokenizer-0 NAME test-tokenizer-0-starcoder         ARGS ${PROJECT_SOURCE_DIR}/models/ggml-vocab-starcoder.gguf)
 
@@ -213,6 +214,41 @@ llama_build_and_test(
 )
 llama_build_and_test(test-regex-partial.cpp)
 
+add_executable(
+    test-rpp-replay
+    test-rpp-replay.cpp
+)
+target_include_directories(test-rpp-replay PRIVATE ../include ../src ../vendor)
+target_compile_features(test-rpp-replay PRIVATE cxx_std_17)
+target_link_libraries(test-rpp-replay PRIVATE llama)
+llama_test(test-rpp-replay)
+
+llama_build_and_test(test-rpp-args.cpp)
+
+add_executable(test-rpp-runtime test-rpp-runtime.cpp)
+target_include_directories(test-rpp-runtime PRIVATE ../include ../src ../vendor)
+target_compile_features(test-rpp-runtime PRIVATE cxx_std_17)
+target_link_libraries(test-rpp-runtime PRIVATE llama)
+llama_test(test-rpp-runtime)
+
+add_executable(test-rpp-prefetch test-rpp-prefetch.cpp)
+target_include_directories(test-rpp-prefetch PRIVATE ../include ../src)
+target_compile_features(test-rpp-prefetch PRIVATE cxx_std_17)
+target_link_libraries(test-rpp-prefetch PRIVATE llama)
+llama_test(test-rpp-prefetch)
+
+add_executable(test-rpp-gpu-transfer test-rpp-gpu-transfer.cpp)
+target_include_directories(test-rpp-gpu-transfer PRIVATE ../include ../src)
+target_compile_features(test-rpp-gpu-transfer PRIVATE cxx_std_17)
+target_link_libraries(test-rpp-gpu-transfer PRIVATE llama)
+llama_test(test-rpp-gpu-transfer)
+
+add_executable(test-rpp-gpu-cache test-rpp-gpu-cache.cpp)
+target_include_directories(test-rpp-gpu-cache PRIVATE ../include ../src)
+target_compile_features(test-rpp-gpu-cache PRIVATE cxx_std_17)
+target_link_libraries(test-rpp-gpu-cache PRIVATE llama)
+llama_test(test-rpp-gpu-cache)
+
 if (NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "s390x")
     set(MODEL_NAME "tinyllamas/stories15M-q4_0.gguf")
     set(MODEL_HASH "SHA256=66967fbece6dbe97886593fdbb73589584927e29119ec31f08090732d1861739")
@@ -251,12 +287,20 @@ llama_build_and_test(test-backend-sampler.cpp   LABEL "model")
 llama_build_and_test(test-state-restore-fragmented.cpp LABEL "model" ARGS -m "${MODEL_DEST}")
 set_tests_properties(test-state-restore-fragmented PROPERTIES FIXTURES_REQUIRED test-download-model)
 
+llama_build_and_test(test-recurrent-state-rollback.cpp LABEL "model" ARGS -m "${MODEL_DEST}")
+set_tests_properties(test-recurrent-state-rollback PROPERTIES FIXTURES_REQUIRED test-download-model)
+
+# Test state save/load functionality
+llama_build_and_test(test-save-load-state.cpp LABEL "model" ARGS -m "${MODEL_DEST}")
+set_tests_properties(test-save-load-state PROPERTIES FIXTURES_REQUIRED test-download-model)
+
 if (NOT GGML_BACKEND_DL)
     # these tests use the backends directly and cannot be built with dynamic loading
     llama_build_and_test(test-barrier.cpp)
     llama_build_and_test(test-quantize-fns.cpp)
     llama_build_and_test(test-quantize-perf.cpp)
     llama_build_and_test(test-rope.cpp)
+    llama_build_and_test(test-col2im-1d.cpp)
 endif()
 
 # libmtmd

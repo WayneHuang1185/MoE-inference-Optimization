@@ -21,6 +21,8 @@ reported experiments:
   dataset loader, losses, metrics, Dockerfile, and smoke test.
 - `experiments/gemma4_bottleneck/`: prompt construction, router-logit dump,
   NPZ preparation, and earlier bottleneck/RPP analysis scripts.
+- `experiments/gpu_main_rpp_gpu/`: GPU-main RPP-GPU report, runners, compact
+  result summaries, and figures for Qwen3.6 MoE expert-cache experiments.
 - `dataset/utils/`: prompt database generation, router-label dumping, NPZ
   packing, validation, and monitoring scripts.
 - `vast-ai/`: Vast.ai Docker/runner scripts used for RPP training sweeps.
