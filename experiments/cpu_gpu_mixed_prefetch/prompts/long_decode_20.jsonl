@@ -1,0 +1,20 @@
+{"id":"p01_moe_intro","text":"Explain mixture-of-experts routing in simple terms."}
+{"id":"p02_prefetch","text":"Describe how predictive prefetch can reduce latency in model inference."}
+{"id":"p03_cache","text":"Explain the difference between a cache hit and a cache miss for neural network weights."}
+{"id":"p04_gpu_cpu","text":"Compare CPU memory and GPU memory in the context of large language model inference."}
+{"id":"p05_router","text":"What does the router do in a mixture-of-experts transformer layer?"}
+{"id":"p06_latency","text":"Define throughput, latency, and tail latency for an inference server."}
+{"id":"p07_page_cache","text":"Explain how an operating system page cache affects mmap model loading."}
+{"id":"p08_dma","text":"What is DMA and why is it useful for moving data to a GPU?"}
+{"id":"p09_batching","text":"Explain why batching multiple prompts can improve GPU utilization."}
+{"id":"p10_decode","text":"Describe the difference between prefill and decode in autoregressive generation."}
+{"id":"p11_expert_cache","text":"Propose a simple policy for caching MoE experts on a small GPU."}
+{"id":"p12_scheduler","text":"Explain why a deadline-aware queue can outperform a FIFO queue."}
+{"id":"p13_topk","text":"Discuss the tradeoff between prefetching top-2 experts and top-4 experts."}
+{"id":"p14_overlap","text":"Explain what it means to overlap data transfer with computation."}
+{"id":"p15_correction","text":"Why must true router correction be preserved when using predicted expert routes?"}
+{"id":"p16_io_bound","text":"How can you tell whether inference is limited by I/O rather than computation?"}
+{"id":"p17_memory_pressure","text":"Explain how memory pressure can increase disk reads during mmap inference."}
+{"id":"p18_pipeline","text":"Describe a pipeline that prepares weights on the CPU while the GPU computes."}
+{"id":"p19_measurement","text":"What metrics would you collect to evaluate a predictive expert cache?"}
+{"id":"p20_summary","text":"Summarize the benefits and risks of using route prediction for MoE inference."}

@@ -34,10 +34,6 @@
 #include <limits.h>
 #include <stdarg.h>
 #include <signal.h>
-#if defined(__linux__)
-#include <sys/mman.h>
-#include <unistd.h>
-#endif
 #if defined(__gnu_linux__)
 #include <syscall.h>
 #endif
@@ -52,6 +48,10 @@
 
 #ifdef GGML_USE_LLAMAFILE
 #include "llamafile/sgemm.h"
+#endif
+
+#ifdef GGML_USE_CPU_RISCV64_SPACEMIT
+#    include "spacemit/ime.h"
 #endif
 
 // Note: once we move threading into a separate C++ file
@@ -1249,6 +1249,12 @@ void ggml_compute_forward_mul_mat(
     const struct ggml_tensor * src0 = dst->src[0];
     const struct ggml_tensor * src1 = dst->src[1];
 
+    const int32_t hint = ggml_get_op_params_i32(dst, 1);
+    if (hint == GGML_HINT_SRC0_IS_HADAMARD && !params->use_ref) {
+        ggml_compute_forward_fwht(params, dst);
+        return;
+    }
+
     GGML_TENSOR_BINARY_OP_LOCALS
 
     const int ith = params->ith;
@@ -1693,194 +1699,6 @@ static void ggml_compute_forward_mul_mat_id(
 
 /////////////////////////////////
 
-#if defined(__linux__)
-static void ggml_tensor_residency_trace_src(const struct ggml_tensor * node, const struct ggml_tensor * src, int src_idx) {
-    static FILE * trace_file = NULL;
-    static bool trace_init = false;
-    static size_t page_size = 0;
-    static size_t min_bytes = 4096;
-
-    if (!trace_init) {
-        trace_init = true;
-        const char * path = getenv("GGML_TENSOR_RESIDENCY_LOG");
-        if (path != NULL && path[0] != '\0') {
-            trace_file = fopen(path, "w");
-            if (trace_file != NULL) {
-                fprintf(trace_file, "op,node,src_idx,tensor,nbytes,pages,resident_pages,nonresident_pages\n");
-                setvbuf(trace_file, NULL, _IOLBF, 0);
-            }
-        }
-        const char * min_bytes_env = getenv("GGML_TENSOR_RESIDENCY_MIN_BYTES");
-        if (min_bytes_env != NULL && min_bytes_env[0] != '\0') {
-            min_bytes = strtoull(min_bytes_env, NULL, 10);
-        }
-        page_size = (size_t) sysconf(_SC_PAGESIZE);
-        if (page_size == 0) {
-            page_size = 4096;
-        }
-    }
-
-    if (trace_file == NULL || src == NULL || src->data == NULL || src->name[0] == '\0') {
-        return;
-    }
-
-    const size_t nbytes = ggml_nbytes(src);
-    if (nbytes < min_bytes) {
-        return;
-    }
-
-    const uintptr_t data = (uintptr_t) src->data;
-    const uintptr_t start = data & ~(uintptr_t) (page_size - 1);
-    const uintptr_t end = (data + nbytes + page_size - 1) & ~(uintptr_t) (page_size - 1);
-    const size_t pages = (end - start) / page_size;
-    if (pages == 0) {
-        return;
-    }
-
-    unsigned char * vec = (unsigned char *) malloc(pages);
-    if (vec == NULL) {
-        return;
-    }
-
-    size_t resident = 0;
-    if (mincore((void *) start, end - start, vec) == 0) {
-        for (size_t i = 0; i < pages; ++i) {
-            resident += vec[i] & 1;
-        }
-        fprintf(
-            trace_file,
-            "%d,%s,%d,%s,%zu,%zu,%zu,%zu\n",
-            (int) node->op,
-            node->name,
-            src_idx,
-            src->name,
-            nbytes,
-            pages,
-            resident,
-            pages - resident);
-    }
-
-    free(vec);
-}
-
-static void ggml_tensor_residency_trace_node(const struct ggml_compute_params * params, const struct ggml_tensor * node) {
-    if (params->ith != 0) {
-        return;
-    }
-    for (int i = 0; i < GGML_MAX_SRC; ++i) {
-        ggml_tensor_residency_trace_src(node, node->src[i], i);
-    }
-}
-#else
-static void ggml_tensor_residency_trace_node(const struct ggml_compute_params * params, const struct ggml_tensor * node) {
-    GGML_UNUSED(params);
-    GGML_UNUSED(node);
-}
-#endif
-
-static bool ggml_activation_dump_enabled(void) {
-    static bool init = false;
-    static bool enabled = false;
-    if (!init) {
-        init = true;
-        const char * dir = getenv("GGML_ACTIVATION_DUMP_DIR");
-        enabled = dir != NULL && dir[0] != '\0';
-    }
-    return enabled;
-}
-
-static bool ggml_activation_dump_prefix_list_matches(const char * name, const char * prefixes) {
-    const char * p = prefixes;
-    while (p != NULL && p[0] != '\0') {
-        while (p[0] == ',' || p[0] == ' ' || p[0] == '\t') {
-            ++p;
-        }
-        const char * start = p;
-        while (p[0] != '\0' && p[0] != ',') {
-            ++p;
-        }
-        const char * end = p;
-        while (end > start && (end[-1] == ' ' || end[-1] == '\t')) {
-            --end;
-        }
-        const size_t len = (size_t) (end - start);
-        if (len > 0 && strncmp(name, start, len) == 0) {
-            return true;
-        }
-        if (p[0] == ',') {
-            ++p;
-        }
-    }
-    return false;
-}
-
-static bool ggml_activation_dump_want_name(const char * name) {
-    const char * prefixes = getenv("GGML_ACTIVATION_DUMP_NAME_PREFIXES");
-    if (prefixes != NULL && prefixes[0] != '\0') {
-        return ggml_activation_dump_prefix_list_matches(name, prefixes);
-    }
-
-    return
-        strncmp(name, "inp_scaled", 10) == 0 ||
-        strncmp(name, "attn_norm-", 10) == 0 ||
-        strncmp(name, "attn_out-", 9) == 0 ||
-        strncmp(name, "ffn_norm_1-", 11) == 0 ||
-        strncmp(name, "ffn_norm_2-", 11) == 0 ||
-        strncmp(name, "ffn_mlp-", 8) == 0 ||
-        strncmp(name, "ffn_moe-", 8) == 0 ||
-        strncmp(name, "ffn_moe_combined-", 17) == 0 ||
-        strncmp(name, "l_out-", 6) == 0 ||
-        strncmp(name, "ffn_moe_logits-", 15) == 0 ||
-        strncmp(name, "ffn_moe_topk-", 13) == 0;
-}
-
-static void ggml_activation_dump_tensor(const struct ggml_tensor * tensor) {
-    if (!ggml_activation_dump_enabled() || tensor == NULL || tensor->data == NULL || tensor->name[0] == '\0') {
-        return;
-    }
-    if (!ggml_activation_dump_want_name(tensor->name) || !ggml_is_contiguous(tensor)) {
-        return;
-    }
-    if (tensor->type != GGML_TYPE_F32 && tensor->type != GGML_TYPE_I32) {
-        return;
-    }
-
-    const char * dir = getenv("GGML_ACTIVATION_DUMP_DIR");
-    static unsigned long dump_id = 0;
-    unsigned long id = dump_id++;
-
-    char clean_name[GGML_MAX_NAME];
-    for (size_t i = 0; i < sizeof(clean_name); ++i) {
-        const char c = tensor->name[i];
-        if (c == '\0') {
-            clean_name[i] = '\0';
-            break;
-        }
-        clean_name[i] = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_' ? c : '_';
-    }
-    clean_name[sizeof(clean_name) - 1] = '\0';
-
-    char path[4096];
-    snprintf(path, sizeof(path), "%s/%06lu_%s.bin", dir, id, clean_name);
-    FILE * f = fopen(path, "wb");
-    if (f == NULL) {
-        return;
-    }
-
-    const uint32_t magic = 0x47504144; // GPAD
-    const int32_t type = (int32_t) tensor->type;
-    const int32_t n_dims = GGML_MAX_DIMS;
-    const uint32_t name_len = (uint32_t) strnlen(tensor->name, GGML_MAX_NAME);
-    fwrite(&magic, sizeof(magic), 1, f);
-    fwrite(&type, sizeof(type), 1, f);
-    fwrite(&n_dims, sizeof(n_dims), 1, f);
-    fwrite(tensor->ne, sizeof(tensor->ne[0]), GGML_MAX_DIMS, f);
-    fwrite(&name_len, sizeof(name_len), 1, f);
-    fwrite(tensor->name, 1, name_len, f);
-    fwrite(tensor->data, 1, ggml_nbytes(tensor), f);
-    fclose(f);
-}
-
 static void ggml_compute_forward(struct ggml_compute_params * params, struct ggml_tensor * tensor) {
     GGML_ASSERT(params);
 
@@ -1892,8 +1710,6 @@ static void ggml_compute_forward(struct ggml_compute_params * params, struct ggm
     if (ggml_cpu_extra_compute_forward(params, tensor)) {
         return;
     }
-
-    ggml_tensor_residency_trace_node(params, tensor);
 
     switch (tensor->op) {
         case GGML_OP_DUP:
@@ -2095,6 +1911,10 @@ static void ggml_compute_forward(struct ggml_compute_params * params, struct ggm
         case GGML_OP_IM2COL_3D:
             {
                 ggml_compute_forward_im2col_3d(params, tensor);
+            } break;
+        case GGML_OP_COL2IM_1D:
+            {
+                ggml_compute_forward_col2im_1d(params, tensor);
             } break;
         case GGML_OP_CONV_2D:
             {
@@ -2527,6 +2347,7 @@ static int ggml_get_n_tasks(struct ggml_tensor * node, int n_threads) {
         case GGML_OP_CONV_2D:
         case GGML_OP_CONV_3D:
         case GGML_OP_CONV_2D_DW:
+        case GGML_OP_COL2IM_1D:
         case GGML_OP_CONV_TRANSPOSE_1D:
         case GGML_OP_CONV_TRANSPOSE_2D:
             {
@@ -3127,7 +2948,9 @@ struct ggml_cplan ggml_graph_plan(
                 case GGML_OP_GATED_DELTA_NET:
                     {
                         const int64_t S_v = node->src[2]->ne[0];
-                        cur = S_v * sizeof(float) * n_tasks;
+                        const int64_t K   = ggml_get_op_params_i32(node, 0);
+                        const int64_t per_thread = S_v + (K > 1 ? S_v * S_v : 0);
+                        cur = per_thread * sizeof(float) * n_tasks;
                     } break;
                 case GGML_OP_COUNT:
                     {
@@ -3153,6 +2976,45 @@ struct ggml_cplan ggml_graph_plan(
     return cplan;
 }
 
+
+// Try to fuse the current node with subsequent nodes for better performance.
+// Returns the number of nodes skipped by fusion (>=1), or 0 if no fusion was applied.
+static bool ggml_cpu_disable_fusion = false;  // initialized once in ggml_cpu_init(), read-only afterwards
+
+static int ggml_cpu_try_fuse_ops(
+        const struct ggml_cgraph * cgraph,
+        const int node_n,
+        const struct ggml_compute_params * params,
+        const struct ggml_cplan * cplan) {
+
+    if (ggml_cpu_disable_fusion || cplan->use_ref) {
+        return 0;
+    }
+
+    struct ggml_tensor * node = cgraph->nodes[node_n];
+
+    if (node->op == GGML_OP_RMS_NORM) {
+        // RMS_NORM + MUL fusion
+        const enum ggml_op fuse_ops[] = { GGML_OP_RMS_NORM, GGML_OP_MUL };
+        if (ggml_can_fuse(cgraph, node_n, fuse_ops, 2)) {
+            struct ggml_tensor * mul_node = cgraph->nodes[node_n + 1];
+            const struct ggml_tensor * mul_w = (mul_node->src[0] == node)
+                ? mul_node->src[1] : mul_node->src[0];
+            if (node->src[0]->type  == GGML_TYPE_F32 &&
+                mul_node->type      == GGML_TYPE_F32 &&
+                mul_w->type         == GGML_TYPE_F32 &&
+                mul_w->ne[0]        == node->ne[0]   &&
+                mul_w->nb[0]        == sizeof(float)) {
+
+                ggml_compute_forward_rms_norm_mul_fused(params, node, mul_node);
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
 static thread_ret_t ggml_graph_compute_thread(void * data) {
     struct ggml_compute_state * state = (struct ggml_compute_state *) data;
     struct ggml_threadpool    * tp    = state->threadpool;
@@ -3160,7 +3022,11 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
     const struct ggml_cgraph * cgraph = tp->cgraph;
     const struct ggml_cplan  * cplan  = tp->cplan;
 
+#ifdef GGML_USE_CPU_RISCV64_SPACEMIT
+    ggml_backend_cpu_riscv64_spacemit_set_numa_thread_affinity(state->ith);
+#else
     set_numa_thread_affinity(state->ith);
+#endif
 
     struct ggml_compute_params params = {
         /*.ith        =*/ state->ith,
@@ -3189,18 +3055,13 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
             continue;
         }
 
-        ggml_compute_forward(&params, node);
-
-        if (ggml_activation_dump_enabled()) {
-            if (node_n + 1 < cgraph->n_nodes) {
-                ggml_barrier(state->threadpool);
-            }
-            if (state->ith == 0) {
-                ggml_activation_dump_tensor(node);
-            }
-            if (node_n + 1 < cgraph->n_nodes) {
-                ggml_barrier(state->threadpool);
-            }
+        // TODO: move fused-op detection into ggml_graph_plan so fusion decisions are made once at planning time
+        // Try fused ops, fall back to normal compute
+        const int n_fused = ggml_cpu_try_fuse_ops(cgraph, node_n, &params, cplan);
+        if (n_fused > 0) {
+            node_n += n_fused;
+        } else {
+            ggml_compute_forward(&params, node);
         }
 
         if (state->ith == 0 && cplan->abort_callback &&
@@ -3221,6 +3082,10 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
 #endif
 
     ggml_barrier(state->threadpool);
+
+#ifdef GGML_USE_CPU_RISCV64_SPACEMIT
+    ggml_backend_cpu_riscv64_spacemit_clear_numa_thread_affinity_threaded(state->ith);
+#endif
 
     return 0;
 }
@@ -3962,6 +3827,11 @@ void ggml_cpu_init(void) {
 #if defined(__riscv)
         ggml_init_riscv_arch_features();
 #endif
+
+        {
+            const char * env = getenv("GGML_CPU_DISABLE_FUSION");
+            ggml_cpu_disable_fusion = (env != NULL && atoi(env) == 1);
+        }
 
         is_first_call = false;
     }

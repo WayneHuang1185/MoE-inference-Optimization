@@ -1,0 +1,25 @@
+# Build outputs
+build*/
+llama.cpp/build*/
+
+# Python/runtime caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Large model/checkpoint/data artifacts
+*.gguf
+*.pt
+*.ts.pt
+*.npz
+models/
+dataset/prompt*/
+
+# Generated experiment outputs
+outputs/
+experiments/**/outputs/
+experiments/**/statistics/
+experiments/**/figures/
+experiments/**/results/
+*.log
+

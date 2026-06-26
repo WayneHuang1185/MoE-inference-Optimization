@@ -24,6 +24,7 @@ add_library(llama
             llama-io.cpp
             llama-kv-cache.cpp
             llama-kv-cache-iswa.cpp
+            llama-kv-cache-dsa.cpp
             llama-memory.cpp
             llama-memory-hybrid.cpp
             llama-memory-hybrid-iswa.cpp
@@ -33,6 +34,11 @@ add_library(llama
             llama-model-saver.cpp
             llama-model.cpp
             llama-quant.cpp
+            llama-rpp-gpu-cache.cpp
+            llama-rpp-gpu-transfer.cpp
+            llama-rpp-prefetch.cpp
+            llama-rpp-predictor-replay.cpp
+            llama-rpp-runtime.cpp
             llama-sampler.cpp
             llama-vocab.cpp
             unicode-data.cpp
@@ -47,7 +53,7 @@ set_target_properties(llama PROPERTIES
     MACHO_CURRENT_VERSION 0 # keep macOS linker from seeing oversized version number
 )
 
-target_include_directories(llama PRIVATE .)
+target_include_directories(llama PRIVATE . ../vendor)
 target_include_directories(llama PUBLIC ../include)
 target_compile_features   (llama PRIVATE cxx_std_17) # don't bump
 

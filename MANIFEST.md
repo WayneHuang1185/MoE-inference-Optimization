@@ -7,10 +7,13 @@ outputs are intentionally excluded; see `EXCLUDED.md`.
 
 ## Shared Source
 
-- `REPORT.md`: provenance copy of the project report.
+- `REPORT.md`: project report for the CPU-GPU mixed RPP prefetch branch.
 - `llama.cpp/`: source-side llama.cpp tree, including server and tooling source.
   Build directories, `.git`, virtualenvs, compiled binaries, logs, model weights,
   Torch checkpoints, and NPZ artifacts are excluded.
+- `experiments/cpu_gpu_mixed_prefetch/`: local benchmark harness for the mixed
+  runtime path: RPP online sidecar, GPU expert-cache prefetch, CPU page-cache
+  pretouch, FEO admission, and FEO-aware GPU cache reclaim.
 - `experiments/gemma4_global_predictor/`: RPP model, dataset loader, losses,
   metrics, training, evaluation, export, monitoring, Dockerfile, and smoke test.
 - `experiments/gemma4_bottleneck/`: prompt generation, router-logit collection,
@@ -22,6 +25,44 @@ outputs are intentionally excluded; see `EXCLUDED.md`.
   training sweeps.
 
 ## Experiment Coverage
+
+### CPU-GPU Mixed RPP Prefetch
+
+Primary runners:
+
+- `experiments/cpu_gpu_mixed_prefetch/scripts/run_prefetch_benchmark.py`
+- `experiments/cpu_gpu_mixed_prefetch/scripts/analyze_prefetch_benchmark.py`
+- `experiments/cpu_gpu_mixed_prefetch/scripts/rpp_sidecar.py`
+- `experiments/cpu_gpu_mixed_prefetch/scripts/run_under_memory_limit.sh`
+
+Source dependencies:
+
+- `experiments/cpu_gpu_mixed_prefetch/README.md`
+- `experiments/cpu_gpu_mixed_prefetch/prompts/`
+- `llama.cpp/common/arg.cpp`
+- `llama.cpp/common/common.h`
+- `llama.cpp/include/llama.h`
+- `llama.cpp/src/llama-rpp-runtime.cpp`
+- `llama.cpp/src/llama-rpp-runtime.h`
+- `llama.cpp/src/llama-rpp-gpu-cache.cpp`
+- `llama.cpp/src/llama-rpp-gpu-cache.h`
+- `llama.cpp/src/llama-rpp-gpu-transfer.cpp`
+- `llama.cpp/src/llama-rpp-gpu-transfer.h`
+- `llama.cpp/src/llama-rpp-prefetch.cpp`
+- `llama.cpp/src/llama-rpp-prefetch.h`
+- `llama.cpp/tools/server/server-context.cpp`
+- `llama.cpp/tools/server/server-rpp-sidecar.cpp`
+- `llama.cpp/tools/server/server-rpp-sidecar.h`
+
+External prerequisites:
+
+- Gemma4 26B GGUF model file.
+- RPP checkpoint used by the online sidecar.
+- Expert page map CSV derived from the GGUF tensor layout.
+- CUDA-capable `llama-server` built from this branch for FEO configs.
+- Optional cgroup/systemd memory-limit support for memory-pressure tests.
+- Generated benchmark outputs under `experiments/cpu_gpu_mixed_prefetch/outputs`
+  are local artifacts and are not required source inputs.
 
 ### I/O Boundness Characterization
 

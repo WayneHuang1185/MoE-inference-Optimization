@@ -1,0 +1,3 @@
+{"id":"p01_moe_intro","text":"Explain mixture-of-experts routing in simple terms."}
+{"id":"p02_prefetch","text":"Describe how predictive prefetch can reduce latency in model inference."}
+{"id":"p03_cache","text":"Explain the difference between a cache hit and a cache miss for neural network weights."}

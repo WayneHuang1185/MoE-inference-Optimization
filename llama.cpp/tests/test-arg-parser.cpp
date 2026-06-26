@@ -10,7 +10,7 @@
 #undef NDEBUG
 #include <cassert>
 
-int main(void) {
+static void test(void) {
     common_params params;
 
     printf("test-arg-parser: make sure there is no duplicated arguments in any examples\n\n");
@@ -132,6 +132,30 @@ int main(void) {
     assert(true == common_params_parse(argv.size(), list_str_to_char(argv).data(), params, LLAMA_EXAMPLE_SPECULATIVE));
     assert(params.speculative.draft.n_max == 123);
 
+    argv = {
+        "binary_name",
+        "--rpp-mode", "replay",
+        "--rpp-predictions", "prediction_trace.jsonl",
+        "--rpp-prefetch-depth", "2",
+        "--rpp-prefetch-top-k", "4",
+        "--rpp-prefill",
+        "--no-rpp-decode",
+        "--rpp-trace", "rpp_runtime_trace.jsonl",
+    };
+    assert(true == common_params_parse(argv.size(), list_str_to_char(argv).data(), params, LLAMA_EXAMPLE_SERVER));
+    assert(params.rpp.mode == "replay");
+    assert(params.rpp.predictions == "prediction_trace.jsonl");
+    assert(params.rpp.prefetch_depth == 2);
+    assert(params.rpp.prefetch_top_k == 4);
+    assert(params.rpp.enable_prefill == true);
+    assert(params.rpp.enable_decode == false);
+    assert(params.rpp.trace == "rpp_runtime_trace.jsonl");
+
+    params.rpp.predictions.clear();
+    argv = {"binary_name", "--rpp-mode", "replay"};
+    assert(false == common_params_parse(argv.size(), list_str_to_char(argv).data(), params, LLAMA_EXAMPLE_SERVER));
+    params.rpp.mode = "off";
+
     // multi-value args (CSV)
     argv = {"binary_name", "--lora", "file1.gguf,\"file2,2.gguf\",\"file3\"\"3\"\".gguf\",file4\".gguf"};
     assert(true == common_params_parse(argv.size(), list_str_to_char(argv).data(), params, LLAMA_EXAMPLE_COMMON));
@@ -209,4 +233,14 @@ int main(void) {
     }
 
     printf("test-arg-parser: all tests OK\n\n");
+}
+
+int main(void) {
+    try {
+        test();
+    } catch (std::exception & e) {
+        fprintf(stderr, "test-arg-parser: exception: %s\n", e.what());
+        return 1;
+    }
+    return 0;
 }
