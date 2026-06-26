@@ -91,7 +91,7 @@ sequenceDiagram
 - FEO-style admission：把同一個 ubatch 的 predicted routes 聚合，只預取 density 較高的 experts。
 - FEO-aware reclaim：GPU cache 滿時，優先保留未來 window 中可能再次使用的 experts。
 
-換句話說，這個 branch 的重點不是單純把 CPU prefetch 和 GPU prefetch 接在一起，而是嘗試找出在有限 DRAM / VRAM 下，哪些 predicted experts 真的值得提前搬移。
+
 
 ## Experiment
 
@@ -142,33 +142,17 @@ generated tokens per request: 8
 - 增加 GPU copy workers，嘗試降低單一 copy worker 的排隊時間。
 - 加入 host pretouch，確認 CPU page-cache prefetch 是否能和 GPU prefetch 互補。
 - 加入 FEO admission / reclaim，嘗試避免 naive mixed prefetch 製造過多額外 I/O。
-- 修正 CUDA 11.8 build 時 PDL API 不相容的問題，使 target repo 可以編出自己的 CUDA runtime binary。
 
-目前仍需要補上更完整的測試，包括 original llama.cpp baseline、較長 decode、更多 prompts，以及 memory limit 下的 CPU page-cache pressure。現在的結果比較適合說明目前嘗試到的現象與問題，而不是作為最終效能結論。
 
-評估時不能只看 ready hit。真正能說明加速與否的指標至少包含：
-
-```text
-decode tokens/s
-TPOT
-wall time
-ready hit
-correction p95
-host pretouch bytes/pages
-major/minor page faults
-GPU copy queue wait
-generated token count
-```
-
-如果 ready hit 上升但 wall time 變差，代表 prefetch 做了更多工作，但沒有成功被 compute overlap 掉。如果 correction p95 下降但 wall time 沒下降，則可能是 sidecar、server startup、prompt processing 或 disk I/O 吃掉收益。因此最後必須用 end-to-end latency，而不是單一 cache 指標，來判斷這個方法是否真的有效。
+現在的結果比較適合說明目前嘗試到的現象與問題，而不是作為最終效能結論。
 
 ## Future work
 
-第一個後續工作是完成 FEO mixed 的正式實測。現在程式路徑已經有 FEO admission 與 FEO-aware GPU reclaim，但需要使用 target repo 自己編出的 CUDA `llama-server` 重新跑，而不是借用舊 runtime binary。
+第一個可以進行方向，是完成 FEO mixed 的正式實測。現在程式路徑已經有 FEO admission 與 FEO-aware GPU reclaim。
 
-第二個後續工作是加入 memory pressure。CPU page-cache prefetch 在沒有明顯 memory pressure 時，可能只是增加額外讀取；在 DRAM 接近滿載時，它才比較可能展現「提前把正確 pages 留在 cache」的價值。因此後續需要在 14GB memory limit 或類似條件下重跑 mixed / FEO mixed。
+第二個，是加入 memory pressure。CPU page-cache prefetch 在沒有明顯 memory pressure 時，可能只是增加額外讀取；在 DRAM 接近滿載時，它才比較可能展現「提前把正確 pages 留在 cache」的價值。因此後續需要在 14GB memory limit 或類似條件下重跑 mixed / FEO mixed。
 
-第三個後續工作是更精準地量測 overlap。目前我們知道部分 prefetch 沒有在使用前完成，但還需要記錄更完整的時間點：
+第三個，是更精準地量測 overlap。目前我們知道部分 prefetch 沒有在使用前完成，但還需要記錄更完整的時間點：
 
 ```text
 T0 = enqueue prefetch
@@ -179,4 +163,4 @@ T3 = expert is actually needed
 
 有了這些時間點，才能判斷問題到底是 GPU compute window 太短、GPU copy queue 排隊、disk I/O 太慢、RPP 預測錯誤，還是 cache eviction policy 不適合。
 
-第四個後續工作是 route-similarity token regrouping / microbatch scheduling。目前 branch 主要做 prefetch，沒有真正改變 llama.cpp 的 ubatch token order。若未來能把 predicted route 相似的 decode tokens 放進同一個 microbatch，就有機會減少每個 microbatch 啟動的 distinct experts，進一步降低 expert loading 和提升 GPU utilization。不過這會牽涉 slot、KV cache、logits mapping 與 autoregressive order，因此應獨立成下一階段實驗。
+第四個，是 route-similarity token regrouping / microbatch scheduling。目前 branch 主要做 prefetch，沒有真正改變 llama.cpp 的 ubatch token order。若未來能把 predicted route 相似的 decode tokens 放進同一個 microbatch，就有機會減少每個 microbatch 啟動的 distinct experts，進一步降低 expert loading 和提升 GPU utilization。不過這會牽涉 slot、KV cache、logits mapping 與 autoregressive order，因此應獨立成下一階段實驗。
