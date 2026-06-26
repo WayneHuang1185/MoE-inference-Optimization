@@ -122,17 +122,25 @@ generated tokens per request: 8
 
 目前已完成的測試結果如下：
 
-| config | generated | decode t/s | TPOT ms | wall ms | ready hit | correction p95 ms |
-|---|---:|---:|---:|---:|---:|---:|
-| `rpp_depth_0_c512` | 8.0 | 0.060 | 16549.5 | 351249.1 | 26.4% | 425.0 |
-| `rpp_deadline_d1_k2_w2_c512` | 8.0 | 0.063 | 15985.2 | 340018.0 | 39.0% | 344.9 |
-| `rpp_mixed_host_d1_k2_w2_c512` | 8.0 | 0.054 | 18461.8 | 364743.6 | 39.5% | 463.4 |
+| config | generated | decode t/s | TPOT ms | wall ms | ready hit | correction p95 ms | sidecar ms |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `rpp_depth_0_c512` | 8.0 | 0.073 | 14110.5 | 344572.6 | 19.0% | 332.5 | 249.5 |
+| `rpp_mixed_host_d1_k2_w2_c512` | 8.0 | 0.075 | 13630.3 | 324340.2 | 31.4% | 350.2 | 278.5 |
+| `rpp_feo_mixed_d1_k2_w2_c512` | 8.0 | 0.076 | 13587.6 | 342923.1 | 23.2% | 330.4 | 289.9 |
 
-從目前結果可以看到，加入 GPU predictive prefetch 後，ready hit 從 26.4% 提升到 39.0%，correction p95 從 425.0 ms 降到 344.9 ms，TPOT 與 wall time 也略有下降。這表示 GPU expert cache 加上 RPP prefetch 的方向是有機會的。
+Host prefetch 的統計如下：
 
-但直接加入 CPU page-cache pretouch 後，結果反而變慢。`rpp_mixed_host_d1_k2_w2_c512` 的 ready hit 與 GPU-only prefetch 接近，但 TPOT 與 correction p95 都變差。這代表 naive host pretouch 可能製造額外 disk I/O、page-cache churn 或 CPU scheduling overhead，進而抵消 GPU prefetch 的收益。
+| config | host events | done | ready before router | host prefetch p95 ms | major faults | pages | bytes GiB |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `rpp_depth_0_c512` | 630 | 0.0% | 0.0% | 0.0 | 0 | 0 | 0.00 |
+| `rpp_mixed_host_d1_k2_w2_c512` | 630 | 100.0% | 100.0% | 208.3 | 1154 | 1215181 | 4.64 |
+| `rpp_feo_mixed_d1_k2_w2_c512` | 630 | 27.1% | 27.1% | 122.1 | 280 | 236116 | 0.90 |
 
-因此目前觀察到的重點是：mixed prefetch 不應該只是把所有 predicted pages 都提前讀進 CPU DRAM，而是需要 admission policy 控制 prefetch 範圍。這也是加入 FEO-style admission 的原因：利用 batch-level density 過濾低價值 prediction，讓 CPU page-cache prefetch 和 GPU expert-cache prefetch 都集中在較可能被共用的 experts 上。
+從目前結果可以看到，直接加入 host pretouch 的 `rpp_mixed_host_d1_k2_w2_c512` 在 wall time 上最好，但它也產生最多 host prefetch work：總共讀取約 4.64 GiB、觸發 1154 次 major faults。這代表 naive mixed prefetch 確實能把更多資料提前準備好，但代價是額外 I/O 較高。
+
+`rpp_feo_mixed_d1_k2_w2_c512` 的主要效果不是讓 ready hit 最高，而是明顯降低 host prefetch 工作量。相較於 naive mixed host，它的 prefetch bytes 從 4.64 GiB 降到 0.90 GiB，major faults 從 1154 降到 280，host prefetch p95 也從 208.3 ms 降到 122.1 ms。這表示 FEO admission 有成功過濾掉一部分低密度、低價值的 prefetch candidates。
+
+不過，在目前 3 prompts、8 generated tokens 的設定下，FEO mixed 的 end-to-end wall time 還沒有穩定勝過 naive mixed host。這代表目前 FEO 的效益主要反映在降低 I/O 壓力，而不是直接轉換成明顯 latency speedup。後續需要在更長 decode、更多 prompts 或更明顯 memory pressure 下測試，才能判斷 FEO 篩選是否能在實際 serving 場景中勝過 naive prefetch。
 
 除了上述數據，本 branch 也嘗試過以下方向：
 
@@ -144,11 +152,11 @@ generated tokens per request: 8
 - 加入 FEO admission / reclaim，嘗試避免 naive mixed prefetch 製造過多額外 I/O。
 
 
-現在的結果比較適合說明目前嘗試到的現象與問題，而不是作為最終效能結論。
+現在的結果比較適合說明目前嘗試到的現象與問題：GPU/host prefetch 可能改善部分 waiting cost，但 prefetch scope 需要被控制；FEO admission 可以降低額外 I/O，但是否能轉換成 end-to-end speedup 還需要更完整的 workload 驗證。
 
 ## Future work
 
-第一個可以進行方向，是完成 FEO mixed 的正式實測。現在程式路徑已經有 FEO admission 與 FEO-aware GPU reclaim。
+第一個可以進行方向，是把 FEO mixed 放到更完整的 workload 中測試。現在小規模測試已經確認 FEO admission 能降低 host prefetch bytes 與 major faults，但還需要用更多 prompts、較長 decode，以及不同 GPU cache size 確認它是否能穩定改善 end-to-end latency。
 
 第二個，是加入 memory pressure。CPU page-cache prefetch 在沒有明顯 memory pressure 時，可能只是增加額外讀取；在 DRAM 接近滿載時，它才比較可能展現「提前把正確 pages 留在 cache」的價值。因此後續需要在 14GB memory limit 或類似條件下重跑 mixed / FEO mixed。
 
