@@ -1,49 +1,84 @@
 ## Method
 
-這個 branch 的目標是把原本 RPP runtime prototype 往 CPU-GPU mixed prefetch 方向延伸。原先的 prototype 主要處理 `CPU DRAM -> GPU VRAM`：也就是利用 RPP 預測未來會被使用的 experts，提前把 selected expert weights 搬進 GPU expert cache。這次整合後，除了 GPU expert cache，也加入同學 FEO-style CPU page-cache prefetch 的概念，使系統同時考慮：
+這個 branch 的目標是把原本 RPP runtime prototype 往 CPU-GPU mixed prefetch 方向延伸。原先的 prototype 主要處理 `CPU DRAM -> GPU VRAM`，也就是利用 RPP 預測未來會被使用的 experts，提前把 selected expert weights 搬進 GPU expert cache。這次整合後，除了 GPU expert cache，也加入同學 FEO-style CPU page-cache prefetch 的概念，使系統同時考慮：
 
 ```text
 disk / GGUF mmap -> CPU DRAM page cache -> GPU VRAM expert cache
 ```
 
-不過本 branch 的重點不是重新實作完整 CPU FEO 架構，而是把 FEO 的核心想法接到 GPU runtime：RPP 不直接取代原模型 router，而是提供 memory hint。模型真正使用哪些 experts 仍由 true router 決定；若 RPP 預測錯誤，runtime 會用 true router 結果進行 correction，因此不應改變模型輸出。
+不過本 branch 的重點不是重新實作完整 CPU FEO 架構，而是把 FEO 的核心想法接到 GPU runtime。RPP 不直接取代原模型 router，而是提供 memory hint。模型真正使用哪些 experts 仍由 true router 決定；若 RPP 預測錯誤，runtime 會用 true router 結果進行 correction，因此不應改變模型輸出。
 
-GPU 部分的設計重點是建立一個 GPU expert cache。由於完整 MoE weights 無法全部常駐於 6GB VRAM，因此 runtime 會把每個 `(layer, expert)` 視為可動態搬移的 cache entry。當 RPP 預測某些 experts 即將被使用時，CPU runtime 會在背景把這些 experts 複製到 GPU cache；當模型真正執行到 MoE layer 時，再用 true router 檢查 cache：
+同學原本 CPU-only FEO 的主要目標，是在模型權重透過 GGUF mmap 由 OS page cache 管理的情況下，提前把 high-frequency experts 的 pages 從 disk 拉進 CPU DRAM。這個方法直接處理的是 `disk -> CPU DRAM` 的 blocking page fault 問題，適合 CPU-only inference 或 CPU memory pressure 明顯的場景。
 
-```text
-cache hit  -> 直接使用 GPU cache 中的 true experts
-cache miss -> 同步補搬 missing true experts，再執行 MoE
+```mermaid
+sequenceDiagram
+    participant CPU as CPU Runtime
+    participant DRAM as CPU Page Cache
+    participant Disk as GGUF mmap / Disk
+
+    CPU->>CPU: RPP predicts expert demand
+    CPU->>CPU: FEO selects high-density experts
+    CPU->>DRAM: Pretouch selected GGUF pages
+    DRAM->>Disk: Page-in if missing
+    Disk-->>DRAM: Expert pages become resident
+    CPU->>CPU: Continue CPU-side inference
 ```
 
-簡化流程如下：
+我的原本 GPU runtime 則處理另一個問題：即使 expert pages 已經在 CPU DRAM 中，若 experts 沒有在 GPU VRAM，MoE layer 真正需要它們時仍然會卡在 `CPU DRAM -> GPU VRAM` 的同步搬移。因此 GPU 部分的設計重點是建立 GPU expert cache。由於完整 MoE weights 無法全部常駐於 6GB VRAM，runtime 會把每個 `(layer, expert)` 視為可動態搬移的 cache entry。當 RPP 預測某些 experts 即將被使用時，CPU runtime 會在背景把這些 experts 複製到 GPU cache；當模型真正執行到 MoE layer 時，再用 true router 檢查 cache：
 
 ```mermaid
 sequenceDiagram
     participant CPU as CPU Runtime
     participant GPU as GPU Runtime
-    participant MEM as CPU DRAM / GGUF mmap
 
     CPU->>CPU: RPP predicts future expert paths
-    CPU->>CPU: Select experts by depth / top-k / FEO admission
+    CPU->>GPU: Async copy predicted experts
+    CPU->>GPU: Launch model computation
+    GPU->>GPU: Dense / attention / router
+    GPU-->>CPU: Return true experts
+    CPU->>GPU: Check GPU expert cache
+    alt cache hit
+        GPU->>GPU: Run MoE directly
+    else cache miss
+        CPU->>GPU: Copy missing true experts
+        GPU->>GPU: Run MoE after correction
+    end
+```
 
-    par Prefetch path
-        CPU->>MEM: Pretouch predicted GGUF pages
-        CPU->>GPU: Async copy predicted experts to GPU cache
-    and Inference path
+CPU-only FEO 與 GPU expert cache 的差別在於：前者減少 page fault，後者減少 GPU demand-time copy。這兩者不是互相取代，而是處理 memory hierarchy 中不同層的 stall。因此 mixed path 的想法是：RPP prediction 先經過 FEO-style admission，保留 batch 中較高密度、較可能被多 tokens 共用的 experts；被保留的 experts 一方面用來 pretouch GGUF pages，另一方面用來排入 GPU copy queue。最後模型仍以 true router 結果為準，cache miss 時才同步 correction。
+
+```mermaid
+sequenceDiagram
+    participant CPU as CPU Runtime
+    participant DRAM as CPU Page Cache
+    participant GPU as GPU Runtime
+    participant Disk as GGUF mmap / Disk
+
+    CPU->>CPU: RPP predicts future expert paths
+    CPU->>CPU: FEO admission filters predicted experts
+
+    par Host prefetch
+        CPU->>DRAM: Pretouch admitted expert pages
+        DRAM->>Disk: Page-in missing pages
+        Disk-->>DRAM: Pages become resident
+    and GPU prefetch
+        CPU->>GPU: Async copy admitted experts
+    and Inference
         CPU->>GPU: Launch model computation
         GPU->>GPU: Dense / attention / router
         GPU-->>CPU: Return true experts
         CPU->>GPU: Check GPU expert cache
-        alt hit
+        alt cache hit
             GPU->>GPU: Run MoE directly
-        else miss
+        else cache miss
+            CPU->>DRAM: Read missing true expert slices
             CPU->>GPU: Copy missing true experts
             GPU->>GPU: Run MoE after correction
         end
     end
 ```
 
-這裡最重要的取捨是：RPP prefetch 只有在資料搬移能和 GPU compute overlap 時才有價值。如果 prefetch 太晚，expert 還沒搬完就被 true router 需要，GPU 仍然要等待；如果 prefetch 太多，則會增加 GPU copy queue、VRAM cache eviction，以及 disk/page-cache 壓力。因此，本 branch 加入了幾個控制機制：
+混合後的重點不是「CPU 多做一層 prefetch 就一定比較快」，而是要讓兩層 prefetch 都不要製造過多額外工作。若 CPU pretouch 太積極，可能造成 disk I/O 增加或 page-cache churn；若 GPU prefetch 太積極，可能造成 copy queue 排隊、VRAM cache eviction，甚至把真正快用到的 experts 擠出去。因此，本 branch 加入幾個控制機制：
 
 - `prefetch depth`：控制要提前幾層載入。
 - `top-k`：控制每個 token / layer 只預取 RPP 最有信心的前幾個 experts。
@@ -52,7 +87,7 @@ sequenceDiagram
 - FEO-style admission：把同一個 ubatch 的 predicted routes 聚合，只預取 batch 中密度較高、較可能被多 tokens 共用的 experts。
 - FEO-aware reclaim：GPU cache 滿時，避免太早淘汰未來 window 中可能再次被用到的 experts。
 
-CPU page-cache prefetch 在這裡只作為 mixed path 的一部分：當 GPU prefetch 需要從 GGUF mmap 讀取 expert slices 時，如果對應 pages 尚未在 CPU page cache 中，仍可能被 disk I/O 阻塞。因此 mixed path 會嘗試先 pretouch predicted GGUF byte ranges。這和同學原本 CPU-only FEO 的方向一致，但本 branch 更關心它和 GPU expert cache 一起使用時，是否真的能降低 end-to-end latency，而不是單純降低 page fault。
+總結來說，同學的 CPU-only FEO 比較像是在 OS page cache 前面加上 expert-aware hints；我的 GPU runtime 則是在有限 VRAM 中加入 expert-aware GPU cache。這個 branch 的 mixed design 是把兩者接起來，但評估標準必須是 end-to-end latency，而不是單純看 page fault 或 ready hit 單一指標。
 
 ## Experiment
 
