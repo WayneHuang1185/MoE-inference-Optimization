@@ -1,1 +1,0 @@
-解釋 Adam optimizer 的兩個 moment 估計 (m_t, v_t) 是怎麼算的，並說明它比 vanilla SGD 在 sparse gradient 情況下優勢何在。也指出 Adam 的失效情境。

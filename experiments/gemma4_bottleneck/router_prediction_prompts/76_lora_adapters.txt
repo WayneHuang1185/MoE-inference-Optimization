@@ -1,1 +1,0 @@
-Describe how LoRA adapters compose with a base model at inference time, the algebra behind low-rank updates, and how a serving stack multiplexes many tenants' adapters on a shared GPU.

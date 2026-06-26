@@ -1,1 +1,0 @@
-請寫一份詳細技術備忘錄，主題是 CPU-only MoE inference 的記憶體管理。內容需要涵蓋 GGUF tensor layout、mmap、NUMA、cgroup、swap、page residency、expert prefetch，以及如何設計可重現的 benchmark。

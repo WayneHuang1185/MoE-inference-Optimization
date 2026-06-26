@@ -1,1 +1,0 @@
-Explain how AlphaFold-style models combine evolutionary couplings from multiple sequence alignments with pairwise geometric attention to predict residue contact maps.

@@ -1,1 +1,0 @@
-Explain the OAuth2 authorization code flow with PKCE for a single-page application, identify what the code verifier protects against, and call out the most common implementation mistakes.

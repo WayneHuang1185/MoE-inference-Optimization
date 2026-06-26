@@ -1,1 +1,0 @@
-Walk through the derivation of the Cooley-Tukey radix-2 FFT, then explain how the bit-reversal permutation and butterfly pattern are implemented in cache-friendly C code.

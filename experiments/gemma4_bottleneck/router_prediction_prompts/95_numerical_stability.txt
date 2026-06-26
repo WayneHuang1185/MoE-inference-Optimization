@@ -1,1 +1,0 @@
-Explain how catastrophic cancellation arises when computing the variance with the naive two-pass formula, and present a numerically stable algorithm with a proof of its error bound.

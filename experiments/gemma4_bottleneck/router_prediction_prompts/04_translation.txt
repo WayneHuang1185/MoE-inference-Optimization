@@ -1,1 +1,0 @@
-Translate the following paragraph into Traditional Chinese and preserve technical terms: Sparse expert models reduce average compute by routing tokens to a subset of experts, but their memory access pattern can become irregular.

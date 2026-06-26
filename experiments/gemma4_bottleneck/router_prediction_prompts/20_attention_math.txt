@@ -1,1 +1,0 @@
-Explain the mathematics of scaled dot-product attention: why divide by sqrt(d_k), how softmax temperature interacts with the attention pattern, and what numerical issues occur in fp16 for long contexts.

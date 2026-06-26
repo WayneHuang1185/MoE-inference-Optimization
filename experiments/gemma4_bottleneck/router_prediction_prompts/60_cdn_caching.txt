@@ -1,1 +1,0 @@
-Describe how a CDN handles a cache miss for a personalized API response, the interaction with Vary headers, edge logic, and how stale-while-revalidate balances freshness and latency.

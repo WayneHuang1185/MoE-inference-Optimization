@@ -1,1 +1,0 @@
-Translate the following to traditional Chinese with technical accuracy: 'Tensor parallelism splits a single layer's weight matrix across multiple GPUs, requiring an all-reduce after every forward pass. Pipeline parallelism, by contrast, splits different layers across GPUs and introduces bubble overhead.'

@@ -1,1 +1,0 @@
-Explain how continuous batching differs from static batching in an LLM server, how prefill and decode requests are scheduled together, and the tail-latency implications for mixed workloads.

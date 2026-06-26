@@ -1,1 +1,0 @@
-Compare B-tree and LSM-tree storage engines in terms of write amplification, read latency, space amplification, and the workload profiles where each architecture wins.

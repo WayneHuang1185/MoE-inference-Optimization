@@ -1,1 +1,0 @@
-Five engineers sit in a row. Alice is not at either end. Bob sits immediately to the right of Carol. Dave is two seats away from Eve. Determine all valid orderings and explain your reasoning.

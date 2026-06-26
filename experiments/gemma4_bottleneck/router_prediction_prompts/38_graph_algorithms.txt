@@ -1,1 +1,0 @@
-Describe Tarjan's strongly connected components algorithm step by step, then write pseudocode showing how to use the resulting condensation graph for cycle-aware scheduling.

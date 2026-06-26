@@ -1,1 +1,0 @@
-State the second law of thermodynamics in three equivalent forms (Clausius, Kelvin-Planck, entropy), then explain how each is used in practical engine cycle analysis.

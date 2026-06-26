@@ -1,1 +1,0 @@
-Describe vLLM's PagedAttention scheme, how block tables and copy-on-write enable prefix sharing across requests, and where fragmentation overhead can still appear in practice.

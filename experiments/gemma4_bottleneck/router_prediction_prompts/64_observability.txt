@@ -1,1 +1,0 @@
-Compare logs, metrics, and traces for incident debugging, then describe an end-to-end observability pipeline using OpenTelemetry, including sampling strategies for high-cardinality data.

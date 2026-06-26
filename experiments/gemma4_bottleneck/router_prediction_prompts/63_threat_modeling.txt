@@ -1,1 +1,0 @@
-Apply the STRIDE threat-modeling methodology to a typical web application that has a browser client, an API gateway, a worker queue, and a relational database, and produce the top five risks to mitigate.

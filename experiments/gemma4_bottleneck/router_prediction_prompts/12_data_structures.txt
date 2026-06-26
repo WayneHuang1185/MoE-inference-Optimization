@@ -1,1 +1,0 @@
-請用 Python 實作一個自我平衡的 AVL tree class，包含 insert、delete、search 三個 method。回傳完整 code 並附上每個 method 的時間複雜度分析。

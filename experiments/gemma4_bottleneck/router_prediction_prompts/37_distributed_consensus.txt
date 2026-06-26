@@ -1,1 +1,0 @@
-用繁體中文解釋 Raft consensus 演算法的 leader election、log replication 與 safety 性質，並比較它和 Paxos 在工程實作上的差異。

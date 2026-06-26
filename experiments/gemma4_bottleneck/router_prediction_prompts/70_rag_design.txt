@@ -1,1 +1,0 @@
-Design a retrieval-augmented generation pipeline for a customer support knowledge base, covering chunking strategy, hybrid retrieval, reranking, and how to evaluate factuality of the final answer.

@@ -1,1 +1,0 @@
-請用幾何直觀解釋 eigenvalue 和 eigenvector 的意義，並計算矩陣 [[2,1],[1,2]] 的所有 eigenvalues 與對應 eigenvectors。

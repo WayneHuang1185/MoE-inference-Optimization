@@ -1,1 +1,0 @@
-A medical test for a rare disease has 95% sensitivity and 99% specificity. The disease prevalence is 0.1%. Given a positive test result, compute the posterior probability that the patient has the disease using Bayes' rule. Why is the answer surprisingly low?

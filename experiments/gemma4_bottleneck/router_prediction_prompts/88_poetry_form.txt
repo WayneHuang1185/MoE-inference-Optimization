@@ -1,1 +1,0 @@
-Compose a 14-line Shakespearean sonnet whose subject is the moment a long-running batch job finally completes after several false starts overnight.

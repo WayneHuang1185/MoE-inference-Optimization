@@ -1,1 +1,0 @@
-Trace the V8 event loop execution order for a script that mixes setTimeout, Promise.then, queueMicrotask, and a top-level await, and explain why microtasks always drain before the next macrotask.

@@ -1,1 +1,0 @@
-Explain how CPU cache hierarchies (L1/L2/L3) affect the performance of memory-bound numerical code. Why does row-major vs column-major iteration order matter for a 10000x10000 matrix multiplication?

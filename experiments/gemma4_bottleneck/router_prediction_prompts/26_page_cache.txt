@@ -1,1 +1,0 @@
-Explain how the Linux page cache affects sequential vs random read performance on a large file. Why does the second read of a 1GB file often complete in under a second, and how can a process intentionally bypass the page cache?

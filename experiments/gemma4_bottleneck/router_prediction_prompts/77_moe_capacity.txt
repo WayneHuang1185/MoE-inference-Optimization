@@ -1,1 +1,0 @@
-Explain expert capacity factor in Switch and GShard-style MoE training, why token dropping happens, and how the capacity choice trades off load balance against compute waste.

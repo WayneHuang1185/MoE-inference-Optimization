@@ -1,1 +1,0 @@
-A web server handles 10000 concurrent connections, each reading 1KB JSON files at random. Walk through the dominant I/O bottleneck under three configurations: spinning disk, NVMe SSD, and RAM disk. Calculate approximate throughput limits for each.

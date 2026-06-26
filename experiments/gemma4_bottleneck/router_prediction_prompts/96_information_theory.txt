@@ -1,1 +1,0 @@
-State the source coding theorem informally, show how Huffman coding achieves it for known distributions, and explain why arithmetic coding can approach the entropy bound more tightly.

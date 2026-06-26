@@ -1,1 +1,0 @@
-Rédigez en français un court mémo expliquant les compromis entre latence et débit dans le service d'un modèle de langage à grande échelle, en mentionnant le batching continu.

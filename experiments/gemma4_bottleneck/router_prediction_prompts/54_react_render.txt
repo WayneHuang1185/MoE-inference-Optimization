@@ -1,1 +1,0 @@
-Explain React's reconciliation algorithm, how it diffs the virtual DOM, and the conditions under which keyed list updates avoid unnecessary subtree remounts.

@@ -1,1 +1,0 @@
-Prove by induction that the sum of the first n cubes equals the square of the sum of the first n integers, and explain why a direct combinatorial bijection also yields the result.

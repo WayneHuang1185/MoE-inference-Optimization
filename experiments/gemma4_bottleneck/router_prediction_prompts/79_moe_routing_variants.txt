@@ -1,1 +1,0 @@
-Compare top-k token-choice routing, expert-choice routing, and hash-based routing in MoE models, focusing on training stability, inference predictability, and load skew.

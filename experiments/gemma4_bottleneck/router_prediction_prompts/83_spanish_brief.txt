@@ -1,1 +1,0 @@
-Explica en español cómo se mide la calidad de un sistema RAG en producción y qué métricas usar para detectar regresiones cuando el corpus de conocimiento cambia.

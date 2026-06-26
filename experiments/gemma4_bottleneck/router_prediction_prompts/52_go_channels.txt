@@ -1,1 +1,0 @@
-Describe how unbuffered and buffered Go channels differ at runtime, how select chooses among ready channels, and when a closed channel becomes useful as a broadcast signal.

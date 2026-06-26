@@ -1,1 +1,0 @@
-List five common cognitive biases that affect engineering design reviews, give a concrete example for each, and propose a lightweight ritual that a team can adopt to counteract them.

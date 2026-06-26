@@ -1,1 +1,0 @@
-Gemma4 26B A4B 的 router 是 softmax top-k。If we can predict the next layer experts from the previous layer hidden state, how should we evaluate whether the prediction is useful for reducing swap-related stalls?
